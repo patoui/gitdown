@@ -1,3 +1,6 @@
 vendor/
 node_modules/
 .idea/
+.gitignore
+composer.lock
+.phpunit.result.cache

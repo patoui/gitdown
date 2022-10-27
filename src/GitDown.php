@@ -2,7 +2,7 @@
 
 namespace GitDown;
 
-use Zttp\Zttp;
+use GuzzleHttp\Client;
 
 class GitDown
 {
@@ -11,12 +11,13 @@ class GitDown
     protected $allowedTags;
     protected $theme;
 
-    public function __construct($token = null, $context = null, $allowedTags = [], $theme = 'light')
+    public function __construct($token = null, $context = null, $allowedTags = [], $theme = 'light', Client $client = null)
     {
         $this->token = $token;
         $this->context = $context;
         $this->allowedTags = $allowedTags;
         $this->theme = $theme;
+        $this->client = $client ?? new Client();
     }
 
     public function setToken($token)
@@ -42,18 +43,20 @@ class GitDown
 
     public function parse($content)
     {
-        $response = Zttp::withHeaders([
-            'User-Agent' => 'GitDown Plugin',
-        ] + ($this->token ? ['Authorization' => 'token '.$this->token] : []))
-        ->post('https://api.github.com/markdown', [
-            'text' => $this->encryptAllowedTags($content),
-        ] + ($this->context ? ['mode' => 'gfm', 'context' => $this->context] : []));
+        $response = $this->client->request('POST', 'https://api.github.com/markdown', [
+            'headers' => [
+                'User-Agent' => 'GitDown Plugin',
+            ] + ($this->token ? ['Authorization' => 'token '.$this->token] : []),
+            'json' => [
+                'text' => $this->encryptAllowedTags($content),
+            ]
+        ]);
 
-        if (! $response->isOk()) {
-            throw new \Exception('GitHub API Error: ' . $response->body());
+        if ($response->getStatusCode() < 200 || $response->getStatusCode() > 300) {
+            throw new \Exception('GitHub API Error: ' . ((string) $response->getBody()));
         }
 
-        return $this->decryptAllowedTags((string) $response);
+        return $this->decryptAllowedTags((string) $response->getBody());
     }
 
     public function encryptAllowedTags($input)
